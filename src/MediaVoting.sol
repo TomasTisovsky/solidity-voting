@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import "./IZKVoteVerifier.sol";
+
+
 /// @title Media event voting with per-media VC-hash deduplication
 /// @notice One NewsEvent aggregates multiple MediaItems (image + description),
 ///         and voting happens per MediaItem, not per NewsEvent.
@@ -47,6 +50,12 @@ contract MediaVoting {
     /// @dev List of all news events.
     NewsEvent[] private newsEvents;
 
+    address public owner;
+    IZKVoteVerifier public zkVerifier;
+
+    bool public zkVotingEnabled;
+    bool public zkVCHashCheckEnabled;
+
     /// @dev Emitted when a new event is created.
      event EventCreated(
         uint256 indexed eventId,
@@ -76,6 +85,32 @@ contract MediaVoting {
         bool support,
         bool isLocalVoter
     );
+
+    event ZKVerifierUpdated(address indexed verifier);
+    event ZKModeUpdated(bool zkVotingEnabled, bool zkVCHashCheckEnabled);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function setZKVerifier(address verifier) external onlyOwner {
+        zkVerifier = IZKVoteVerifier(verifier);
+        emit ZKVerifierUpdated(verifier);
+    }
+
+    function setZKMode(
+        bool _zkVotingEnabled,
+        bool _zkVCHashCheckEnabled
+    ) external onlyOwner {
+        zkVotingEnabled = _zkVotingEnabled;
+        zkVCHashCheckEnabled = _zkVCHashCheckEnabled;
+        emit ZKModeUpdated(_zkVotingEnabled, _zkVCHashCheckEnabled);
+    }
 
     /// @notice Create a new event and optionally add multiple media items immediately.
     /// @dev eventId is equal to the index in the newsEvents array.
@@ -166,6 +201,7 @@ contract MediaVoting {
     /// @param voterHash Hash derived from VC.
     /// @param support true = yes vote, false = no vote.
     /// @param isLocalVoter true if voter is local.
+    // Current/demo mode
     function voteOnMedia(
         uint256 eventId,
         uint256 mediaId,
@@ -173,6 +209,49 @@ contract MediaVoting {
         bool support,
         bool isLocalVoter
     ) external {
+        require(!zkVotingEnabled, "Use proof-based voting");
+        _vote(eventId, mediaId, voterHash, support, isLocalVoter);
+    }
+
+    // Future zk mode
+    function voteOnMediaWithProof(
+        uint256 eventId,
+        uint256 mediaId,
+        bytes32 voterHash,
+        bool support,
+        bytes calldata voteProofData,
+        bytes calldata vcHashProofData
+    ) external {
+        require(zkVotingEnabled, "ZK voting disabled");
+        require(address(zkVerifier) != address(0), "ZK verifier not set");
+
+        (bool voteProofValid, bool isLocalVoter) =
+            zkVerifier.verifyVoteProof(
+                voteProofData,
+                voterHash,
+                eventId,
+                mediaId,
+                support
+            );
+
+        require(voteProofValid, "Invalid vote zk proof");
+
+        if (zkVCHashCheckEnabled) {
+            bool vcHashValid =
+                zkVerifier.verifyVCHashProof(vcHashProofData, voterHash);
+            require(vcHashValid, "Invalid VC hash zk proof");
+        }
+
+        _vote(eventId, mediaId, voterHash, support, isLocalVoter);
+    }
+
+    function _vote(
+        uint256 eventId,
+        uint256 mediaId,
+        bytes32 voterHash,
+        bool support,
+        bool isLocalVoter
+    ) internal {
         require(eventId < newsEvents.length, "Unknown event");
 
         NewsEvent storage e = newsEvents[eventId];
@@ -205,10 +284,8 @@ contract MediaVoting {
         bytes32 voterHash
     ) external view returns (bool) {
         require(eventId < newsEvents.length, "Unknown event");
-
         NewsEvent storage e = newsEvents[eventId];
         require(mediaId < e.mediaItems.length, "Unknown media item");
-
         return e.mediaItems[mediaId].hasVoted[voterHash];
     }
 
@@ -230,7 +307,6 @@ contract MediaVoting {
         require(eventId < newsEvents.length, "Unknown event");
 
         NewsEvent storage e = newsEvents[eventId];
-
         return (
             e.id,
             e.name,
@@ -276,6 +352,7 @@ contract MediaVoting {
             m.localNoCount
         );
     }
+
 
     /// @notice Get number of all news events.
     function getEventCount() external view returns (uint256) {
