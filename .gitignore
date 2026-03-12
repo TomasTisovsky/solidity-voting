@@ -1,0 +1,19 @@
+# Foundry build outputs
+out/
+cache/
+
+# Broadcast scripts (deployment outputs)
+broadcast/
+
+# Environment variables
+.env
+
+# Node dependencies (ak by si neskôr používal npm)
+node_modules/
+
+# VSCode local settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
