@@ -1,66 +1,78 @@
-## Foundry
+# MediaVoting
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+MediaVoting is a Solidity smart contract for decentralized reporting of real-world news events and community voting on the credibility of attached media.
 
-Foundry consists of:
+Each **NewsEvent** can contain multiple **MediaItems** (images, videos, etc.). Users can vote on the credibility of each media item individually. Voting is deduplicated using hashes derived from **Verifiable Credentials (VCs)**.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## Features
 
-## Documentation
+- Create news events with metadata (location, timestamp, reporter information)
+- Attach multiple media items to each event
+- Vote on credibility of individual media items
+- Prevent double voting using VC-based hash deduplication
+- Track both global votes and local votes (from the event location)
 
-https://book.getfoundry.sh/
+## Smart Contract Structure
 
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```
+NewsEvent
+ ├── metadata (name, location, timestamp)
+ ├── reporter info
+ └── MediaItem[]
+        ├── uri
+        ├── description
+        ├── mediaType
+        └── votes
 ```
 
-### Test
+Each `MediaItem` stores:
 
-```shell
-$ forge test
+- global **yes / no** votes
+- **local votes** (votes from the event location)
+- `mapping(bytes32 => bool)` to prevent duplicate votes
+
+## Project Structure
+
+```
+src/        Solidity smart contracts
+test/       Foundry tests
+script/     Deployment scripts
+lib/        Dependencies
 ```
 
-### Format
+## Requirements
 
-```shell
-$ forge fmt
+This project uses **Foundry**.
+
+Install Foundry:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+foundryup
 ```
 
-### Gas Snapshots
+## Build
 
-```shell
-$ forge snapshot
+```bash
+forge build
 ```
 
-### Anvil
+## Run Tests
 
-```shell
-$ anvil
+```bash
+forge test
 ```
 
-### Deploy
+## Example Workflow
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
+1. Create a news event
+2. Attach media items to the event
+3. Community members vote on credibility of each media item
+4. The smart contract stores the voting results
 
-### Cast
+## Future Improvements
 
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+- zkSNARK verification for local voters
+- integration with Verifiable Credentials
+- frontend interface
+- deployment scripts
